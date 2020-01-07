@@ -1,0 +1,533 @@
+---
+title: "Final Project"
+author: "Entong Li, Ying Cui, Daohong Liu"
+date: "12/8/2018"
+output: html_document
+---
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(gridExtra)
+library(tableone)
+SRS_all <- read.csv("/Users/lientong/Desktop/data project/KKI_SocialResponsivenessScaleQuestionnaire.csv")
+motor_skill_all <- read.csv("/Users/lientong/Desktop/data project/KKI_movementAssessmentBatteryforChildren.csv")
+demograph <- read.csv("/Users/lientong/Desktop/data project/KKI_demographicInfo.csv")
+intelligence_all <- read.csv("/Users/lientong/Desktop/data project/KKI_WechslerIntelligenceScaleforChildren.csv")
+GAI4 <-read.csv("/Users/lientong/Desktop/data project/wisc4GAI_lookup.csv")
+GAI5 <-read.csv("/Users/lientong/Desktop/data project/wisc5GAI_lookup.csv")
+names(GAI4)[1]<-'sum_WISC4'
+names(GAI5)[1]<-'sum_WISC5'
+names(GAI4)[2]<-'GAI4'
+names(GAI5)[2]<-'GAI5'
+SRS <- SRS_all %>%
+  filter(visit == 1, SRS_AGE <=15, SRS_AGE>=8)
+motor_skill <- motor_skill_all %>%
+  filter(visit == 1, !is.na(mABC_TotalStandardScore), !is.na(mABC_AGE),mABC_AGE<=15,mABC_AGE>=8)
+intelligence <- intelligence_all %>%
+  filter(visit == 1)
+SRS_motor <- inner_join(SRS,motor_skill, by="ID")
+all_test <- inner_join(SRS_motor, intelligence, by = "ID")
+all_data <- inner_join(all_test, demograph, by = "ID")
+all_data <- all_data %>%
+  mutate(sum_WISC4 = all_data$WISC4_Vocabulary + all_data$WISC4_Information + all_data$WISC4_Similarities + all_data$WISC4_BlockDesign + all_data$WISC4_PictureConcepts + all_data$WISC4_MatrixReasoning, sum_WISC5 = all_data$WISC5_Vocabulary + all_data$WISC5_Similarities + all_data$WISC5_BlockDesign + all_data$WISC5_MatrixReasoning + all_data$WISC5_FigureWeights)
+dat <- left_join(all_data,GAI4,by="sum_WISC4")
+full_dat <- left_join(dat,GAI5, by="sum_WISC5")
+full_dat <- full_dat %>%
+  filter(!is.na(SRS_TotalRawScore), !is.na(SRS_AGE))
+full_data_copy <- full_dat
+full_data_copy$GAI4[is.na(full_dat$GAI4)] <- 0
+full_data_copy$GAI5[is.na(full_dat$GAI5)] <- 0
+full_data_copy <- full_data_copy %>%
+  mutate(sum_GAI_all = full_data_copy$GAI4 + full_data_copy$GAI5)
+table_1 <- full_data_copy %>%
+  group_by(PrimaryDiagnosis)%>%
+  summarize(Male = sum(Gender=="M"), Female = sum(Gender=="F"), MeanSRS = mean(SRS_TotalRawScore,na.rm = T),SD_SRS = sd(SRS_TotalRawScore,na.rm = T), MeanMotor = mean(mABC_TotalStandardScore),SD_Moto = sd(mABC_TotalStandardScore,na.rm = T), MeanAge = mean(mABC_AGE),SD_AGE = sd(mABC_AGE), MeanGAI = mean(sum_GAI_all),SD_GAI = sd(sum_GAI_all))
+full_data_copy$Male <- (full_data_copy$Gender == 'M')
+full_data_copy$HaveSecondaryDiag <- (full_data_copy$SecondaryDiagnosis == 'Yes')
+full_data_copy$SRS_VERSION_is_1 <- (full_data_copy$SRS_VERSION == '1')
+full_data_copy <- full_data_copy %>%
+  filter(!is.na(HaveSecondaryDiag))
+table1<- CreateTableOne(data=full_data_copy, vars = c("Gender", "SRS_TotalRawScore","mABC_TotalStandardScore", "mABC_AGE", "sum_WISC_all"), strata = "PrimaryDiagnosis")
+```
+
+#Introduction:
+
+ADHD is “attention deficit hyperactivity disorder”, the main symptom of which is easy distraction, temporary attention, excess activity and impulse, which also means that ADHD children have impairment in motor development. ASD is “Autism Spectrum Disorder”, the main symptom of which is social communication barriers, oral communication barriers and repetition of stereotypic behaviours. The signs and symptoms of ADHD and Autism could be overlap. Both type of children may have difficulty settling down, social awkwardness, the ability to focus only on things that interest them, and impulsivity.
+
+However, these two diseases are different. ADHD is a behavioral disorder. A child with ADHD may exhibit prolonged periods of inattention, hyperactivity, and impulsivity, which can lead to difficulties in his or her area of life.  Autism is a diffuse developmental disorder. Children with Autism have severe and widespread disabilities in social interaction and communication skills. A number of biological studies have shown that the development of the brain in autistic patients is characterized by diffuse abnormalities, leading to impaired ability to process complex information
+
+It is crucial to make a better distinction between the two diseases in psychiatry and behavioral sciences.  By looking at the proposal of the project, there is a negative relationship between motor score and social deficit. And the age and gender will have effect on motor score for each primary diagnosis group, while the intelligence seems do not have obvious effect on social skill. However, there are some other variables like (SAS version, Secondary diagnosis) will change the relationship differently in different diagnosis groups. To investigate future, building separate models for each primary diagnosis group are necessary.
+  
+#Method:
+
+####Participants:
+
+In this project, in order to make sure that all three groups of children are exmined under the same conditions, we only use the data that children visit is equal to one, and their age is between 8 to 15, and their SRS score, motor score and other explored variables are not NA. Under these conditions, the total number of children will be 581. And according to the primary diagnosis, children will be divided into three groups: ADHD group, Autism group, and None group. Here, None group also could be called TD group. Children's level of social deficit will be represent by SRS Total Raw Score, higher score means higher level of social deficit. (Range: 0-195). Children's motor skill will be represent by mABC Total Standard Score, or the Component score, higher score means the children have lower level of impairment in motor performance.
+
+####Table 1:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+table1
+```
+
+For the table one, it shows some basic information of three diagnosis groups. There are 186 children in ADHD group. There are about 130 children are male. The average SRS score is 50.4. The average motor score is 6.15. The average age is 9.73. There are 144 children in ASD group. There are about 119 children are male. The average SRS score is 83.33. The average motor score is 3.89. The average age is 10.18. There are 255 children in TD group. There are about 185 children are male. The average SRS score is 29.16. The average motor score is 8.72. The average age is 10.24.In this data set, the number of boys far exceeds that of girls. The ASD group score the highest mean SRS score among three groups.
+
+####Measures:
+
+Firstly, detect is there any influential points by checking the whether there is any difference between with and without the outliers. If the slope of model with outliers and that of model without outliers are the same or similar, it means that there is no influential point, otherwise, the outliers are influential points.
+
+Then, built linear regression model by using residual analysis. For categorical variables, if different groups have same of similar residuals, then this variable could be added as control group, as it will not affect the model. Otherwise, it should be added as explanatory variables, as it will affect the relationship between social deficit and motor skill. For continuous variables, if the regression line of the plots from residuals analysis is flat, it means the change of this variable does not affect the model, it could be added as control variable. Otherwise, it should be added as explanatory variables.
+
+When there is new variable, the one that could affects the model, added to model, interaction term will be explored. For categriocal variables, both F-test and plots by groups will be used. If the regression-line slope of different groups is similar, and the p-value of F-test is not significant, then the interaction term between this variable and motor score is not needed. Otherwise, the interaction tern should be added, as it will have effect on model. For the continuous variable, as it could not divided by groups, only F-test will be used to determined whether the interaction term between it and motor score will be needed or not.
+
+####Research question: 
+By examining the relationship between SRS score and motor score for ADHD, Autism, and None group of children separately, to find whether children have ADHD or Autism or not will affect their relationship between social deficit and motor skill. And explore whether their age, gender, intelligence, secodary diagnosis, and the SRS test version they took will affect the relationship between social deficit and motor score. After including all variables that will affect the relationship between social deficit and motor skill, will the relationship in the final model differ from that in the original model? How the true relationship between social deficit and motor skill will be like?
+
+###Changes from draft:
+
+* SRS version is added to be explored, and also explore the interaction term between SRS version and motor score.
+* Fix the F-test about determining to use total score or component score
+  + Also use F-test to find the interaction term between Secondary Diagnosis and which component score will have more significant p-value, if the component score is used.
+* Add F-test to determine whether an interaction term is needed.
+* Add graphs about the comparison of regression line from original and final model for each primary diagnosis.
+
+###Peer Feedback:
+
+SRS version is recommanded to used by all other groups. And what the interaction term is included is not showed clearly, and what method is used to determined whether to included the interaction term is not clear. Thus, we added the SRS version in the final version, and added F-test to show how we determine whether to add the interaction term or not. 
+
+
+#Result:
+
+##ADHD group:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+full_data_copy$mABC_TotalScore <- sum(full_data_copy$mABC_AimingAndCatching.Component.StandardScore,full_data_copy$mABC_Balance.Component.StandardScore,full_data_copy$mABC_ManualDexterity.Component.StandardScore)
+ADHD_group <- full_data_copy%>%
+  filter(PrimaryDiagnosis == 'ADHD')
+y_AD <- ADHD_group$SRS_TotalRawScore
+x_AD <- ADHD_group$mABC_TotalStandardScore
+ggplot(data = ADHD_group, aes(y = SRS_TotalRawScore,x= mABC_TotalStandardScore))+ geom_point() + geom_smooth()+geom_smooth(method = 'lm',color = 'red',se=F)+ggtitle("The orginal model for ADHD")
+fit1_ADHD <- lm(data = ADHD_group,SRS_TotalRawScore~ mABC_TotalStandardScore)
+summary(fit1_ADHD)
+```
+
+In the orginal model, the regression line is going down, its slope is negative, which means ADHD children will have lower level of social deficit as their motor skill increases.
+
+###Determine there is any influetial points:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+bad_ADHD <- which(y_AD > 90)
+fit_bad <- lm(y_AD[-bad_ADHD]~x_AD[-bad_ADHD])
+coef <- coefficients(fit1_ADHD)
+coef_bad <- coefficients(fit_bad)
+ggplot(ADHD_group, aes(x=mABC_TotalStandardScore, y=SRS_TotalRawScore)) + geom_point() + 
+  geom_abline(intercept = coef[1], slope=coef[2], color='red') +
+  geom_abline(intercept = coef_bad[1], slope=coef_bad[2], color='blue')
+y_ADHD <- ADHD_group$SRS_TotalRawScore
+x_ADHD <- ADHD_group$mABC_TotalStandardScore
+ADHD <- lm(data= ADHD_group,SRS_TotalRawScore~mABC_TotalStandardScore)
+summary(ADHD)
+summary(fit1_ADHD)
+```
+
+The slopes of both models are the same, meaning that the points we excluded are not influential points.
+
+### Determine whether to include SRS version: 
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+e_ADHD <- residuals(fit1_ADHD)
+ggplot(data=ADHD_group, aes(x = SRS_VERSION, y = e_ADHD, group = SRS_VERSION,color = SRS_VERSION)) + geom_point()+ geom_boxplot(na.rm = TRUE)
+```
+
+The group of verison 1 have lower residual than the group of version 2. The residuals of two is different, so we need to include SRS version in the model.
+
+###Determine whether to included interaction term motor score:version:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = ADHD_group, aes(x = mABC_TotalStandardScore, y = SRS_TotalRawScore,group=SRS_VERSION, color=SRS_VERSION))+geom_point()+geom_smooth(method = 'lm',se=F)
+adhd_SRS<- lm(data = ADHD_group, SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+adhd_red <-lm(data = ADHD_group, SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1)
+anova(adhd_SRS,adhd_red)
+```
+
+The groups with different srs version will have different slope, and the p-value of F-test is not so big, so the interaction term between version and motor score could be included in the model.
+
+
+###Determine whether to included gender:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+e_ADHD <- residuals(adhd_SRS)
+e_ADHD_new1<- residuals(lm(data = ADHD_group, Male~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1))
+ggplot(data = ADHD_group,aes(y = e_ADHD, x = Gender,color=Male)) + geom_boxplot()+
+  ggtitle("added variable plot for adding gender or not")
+```
+
+The residuals of male and female have no obvious different, so we use gender as control variable.
+
+###Determine whether to include age:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+adhd_age <- lm(SRS_TotalRawScore ~ mABC_TotalStandardScore + Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1, data=ADHD_group)
+ADHD_group$resid_age <- residuals(adhd_age)
+e_ADHD_new2 <- residuals(lm(data = ADHD_group, mABC_AGE~mABC_TotalStandardScore+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1))
+ggplot(data = NULL, aes(y=ADHD_group$resid_age, x = e_ADHD_new2))+ geom_point() + geom_smooth() + geom_smooth(method='lm', col='red', se=FALSE,size = 0.5)+ ggtitle("added variable plot for adding age or not")
+```
+
+The regression line is almost flat, the age has not effect on the residual of original model, so we could add age as a control variable.
+
+###Determine whether to include GAI:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+adhd_wisc <- lm(SRS_TotalRawScore ~ mABC_TotalStandardScore + Gender+ mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1, data=ADHD_group)
+ADHD_group$resid_gai <- residuals(adhd_wisc)
+e_ADHD_new3 <- residuals(lm(data = ADHD_group, sum_GAI_all~mABC_TotalStandardScore + Gender+ mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1))
+ggplot(data = NULL, aes(y=ADHD_group$resid_gai, x = e_ADHD_new3))+ geom_point() + geom_smooth()+ geom_smooth(method='lm', col='red', se=FALSE, size = 0.5)+ggtitle("added variable plot for adding GAI or not")
+
+```
+
+The regression line is not flat, it has a positive slope, so the residual value of fitted model increases as the residual value of added variable increases, GAI need to be added in model.
+
+###Determine whether to include interaction term between motor score and GAI:
+
+As the GAI score is a continuous variable not a categorical variable, it cannot be divided by groups then plots in to find wheterh the slopes are different. Thus, we only use the F-test to determine whether to include the interaction term between GAI and motor score.
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+int_GAI_model <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all+mABC_TotalStandardScore:sum_GAI_all)
+no_int_model <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all)
+anova(int_GAI_model,no_int_model)
+
+```
+
+The p-value of interaction term is not significant, so we do not include the interaction term between GAI and motor score.
+
+###Determine whether to include secondary diagnosis:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+adhd_2diag <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all)
+resid_2diag <- residuals(adhd_2diag)
+ggplot(data=ADHD_group, aes(x = HaveSecondaryDiag, y = resid_2diag, group = HaveSecondaryDiag, color = HaveSecondaryDiag)) + geom_boxplot() + ylab('resduals of lm(SRS_TotalRawScore~mABC_TotalStandardScore')
+```
+
+Should add secondary variables in the model, as children who have secondary diagnosis will have higher residuals values.
+
+
+###Determine whether to include interaction term between secondary diagnosis and motor score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+fit2_inter <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_TotalStandardScore:HaveSecondaryDiag)
+#summary(fit1_ADHD)
+#summary(fit2_inter)
+ggplot(data = ADHD_group, aes(y=SRS_TotalRawScore,x=mABC_TotalStandardScore, group = HaveSecondaryDiag,color = HaveSecondaryDiag))+geom_point()+geom_smooth(method = 'lm')
+fit2_no_int <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag)
+anova(fit2_inter,fit2_no_int)
+```
+
+According to the plots, different group have different slope, the group does not have secondary diagnosis has larger negative slope than the one does have. And the p-value from the F-test could be significant. So the interaction could be included in the model.
+
+###Determine to use total score or component score:
+```{r,echo=FALSE, message=FALSE,warning=FALSE}
+full_model_total <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_TotalStandardScore:HaveSecondaryDiag)
+full_model_component <-lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_ManualDexterity.Component.StandardScore:HaveSecondaryDiag+mABC_AimingAndCatching.Component.StandardScore:HaveSecondaryDiag+mABC_Balance.Component.StandardScore:HaveSecondaryDiag)
+adhd_comp_1 <-lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_ManualDexterity.Component.StandardScore:HaveSecondaryDiag)
+adhd_comp_2 <-lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_AimingAndCatching.Component.StandardScore:HaveSecondaryDiag)
+adhd_comp_3 <- lm(data = ADHD_group, SRS_TotalRawScore ~ mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+Gender+mABC_AGE+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_Balance.Component.StandardScore:HaveSecondaryDiag)
+anova(full_model_total,full_model_component)
+anova(full_model_total,adhd_comp_1)
+anova(full_model_total,adhd_comp_2)
+anova(full_model_total,adhd_comp_3)
+```
+
+According to the p-value from F-test above, we could find that when the model includes component scores instead of total score, and for the interaction btween motor score and HavesecondaryDiag, only include the interaction term between mABC_ManualDexterity.Component.StandardScore and have secondary diagnosis will have more significant p-value. So we decide to use that model.
+
+
+
+
+###Final Model for ADHD group:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+adhd_final <- adhd_comp_1
+ggplot(data = ADHD_group,aes(y= SRS_TotalRawScore, x= mABC_TotalStandardScore))+ geom_point()+
+  geom_abline(intercept = coefficients(adhd_final)[1],slope = (coefficients(adhd_final)[2]+coefficients(adhd_final)[3]+coefficients(adhd_final)[4]), color ='green', size = 2) + geom_smooth()
+summary(adhd_final)
+#+geom_point()+ geom_abline(intercept = coefficients(fit2_inter)[1],slope = coefficients(fit2_inter)[2], color = 'red') + geom_smooth(method = 'lm') +
+```
+
+For final model ADHD group, it shows that for ADHD childre, their social deficit level will be lower as their motor score increase. And the increase of their manual dexterity score will decrease their social deficit level more efficiently than other two motor component score. Also, by looking at the p-value from summary, we could say that the interaction between munual dexerity score and HaveSecondaryDiag has strongest effect on the relationship between social deficit and motor skill, as its p-value is most significant, and the second significant one is munual dexterity score itself. Thus, the munual dexterity and whether a child has secondary diagnosis will affect the relationship between motor skill and social deficit most efficiently. And the average level of social deficit increases to 67, while the original model is 58.
+
+##Autism:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+Autism_group <- full_data_copy %>%
+  filter(PrimaryDiagnosis == 'Autism')
+ggplot(data= Autism_group, aes(y= SRS_TotalRawScore, x = mABC_TotalStandardScore)) +geom_point()+geom_smooth()+geom_smooth(method = 'lm',color = 'red',se=F)+ggtitle("The original model for Autism group")
+fit_Autism <- lm(data = Autism_group,SRS_TotalRawScore~mABC_TotalStandardScore)
+summary(fit_Autism)
+```
+
+For the Autism children, their average of SRS score is higher than that of ADHD children, and their motor skill have very small negative effect on their SRS score. Thus the increases of motor skill will only decrease very little level of the social deficit.
+
+###Determine whether there is any influential points:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+bad_Autism <- which(Autism_group$SRS_TotalRawScore > 150)
+fit_Autism_bad <- lm(data=Autism_group, SRS_TotalRawScore[-bad_Autism]~mABC_TotalStandardScore[-bad_Autism])
+ggplot(data = Autism_group,aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore))+geom_point()+geom_abline(slope = coefficients(fit_Autism)[2],intercept = coefficients(fit_Autism)[1],color='blue')+geom_abline(intercept = coefficients(fit_Autism_bad)[1],slope = coefficients(fit_Autism_bad)[2],color='red')
+
+```
+
+The lines look almost the same, so the excluded points are not influential points.
+
+###Determine whether to include SRS version:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = Autism_group, aes(y=residuals(fit_Autism), x = SRS_VERSION, group = SRS_VERSION,color = SRS_VERSION))+
+  geom_point()+geom_boxplot()
+```
+
+The group of version one will have larger value of residuals than the that of version two, so we decide to include the srs version as a variable in model.
+
+###Determine whether there is an interaction between verison and motor score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = Autism_group, aes(y = SRS_TotalRawScore, x= mABC_TotalStandardScore, group = SRS_VERSION, color = SRS_VERSION))+ geom_point()+geom_smooth(method = 'lm')
+asd_srs_int <-  lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+asd_srs_no_int <-  lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1)
+anova(asd_srs_int,asd_srs_no_int)
+```
+
+As different version will have different slope, and the p-value of F-test is significant, we conclude that the interaction term will be needed in the model. 
+
+
+
+###Determine whether to include age:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+autism_age <- lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+Autism_new1 <- lm(data = Autism_group, mABC_AGE~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+ggplot(data = Autism_group,aes(y=residuals(autism_age),x=residuals(Autism_new1)))+geom_point()+geom_smooth()+geom_smooth(method = 'lm',se=F,color='red',size = 0.5) +
+  ggtitle("Added variable plots for adding age or not")
+```
+
+The regression line is not flat enough, and slope of the line is positive, as we decide to include age as variable in model.
+
+###Determine whether to include gender:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+autism_gender <- lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+ggplot(data = Autism_group,aes(y=residuals(autism_gender),x=Gender,color = Gender))+geom_boxplot()+
+  geom_point()
+```
+
+The residuals of male and female have no obivous different, so we make gender as control group variables.
+
+###Determine whether to include GAI:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+autism_GAI <- lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+Autism_new2 <- lm(data = Autism_group, sum_GAI_all~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+ggplot(data = Autism_group,aes(y=residuals(autism_GAI),x= residuals(Autism_new2)))+geom_point()+geom_smooth()+geom_smooth(method = 'lm', color = 'red', size = 0.5,se = F)
+```
+
+The regression line is not flat enough, and its slope is positive, so we decide to include the GAI as a variable in the model.
+
+###Determine whether there is interaction between GAI and motor score:
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+asd_int_GAI <- lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all+mABC_TotalStandardScore:sum_GAI_all)
+asd_no_int_GAI <-lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all)
+anova(asd_int_GAI,asd_no_int_GAI)
+
+```
+
+The p-value of the interaction term between GAI and motor score is not significant, so we do not include the interaction term in the model.
+
+###Determine whether to include Have Secondary diagnosis:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+autism_2diag <- lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+sum_GAI_all)
+ggplot(data = Autism_group,aes(y=residuals(autism_2diag),x=HaveSecondaryDiag,color = HaveSecondaryDiag))+geom_boxplot() + geom_point()
+#fit2_Autism <- lm(data = Autism_group, SRS_TotalRawScore ~ mABC_TotalStandardScore+mABC_AGE+Gender)
+#fit3_Autism <- lm(data = Autism_group_Secondary, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+HaveSecondaryDiag+mABC_TotalStandardScore:HaveSecondaryDiag)
+#summary(fit3_Autism)
+#ggplot(data = Autism_group_Secondary,aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore)) + geom_point() + geom_smooth()+ geom_abline(intercept = coefficients(fit3_Autism)[1], slope = coefficients(fit3_Autism)[2], color = 'red', size = 1)+ geom_abline(intercept = coefficients(fit2_Autism)[1], slope = coefficients(fit2_Autism)[2], color = 'green', size = 2)
+```
+
+The residual analysis shows that we should included the HaveSecondaryDiag as a variable in model, as the group of have Secondary Diagnosis will have larger value of reisdual than the that of do not have Secondary Diagnosis.
+
+###Determine whether there is interaction between have secondary diagnosis and motor score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = Autism_group, aes(y = SRS_TotalRawScore, x= mABC_TotalStandardScore, group = HaveSecondaryDiag, color = HaveSecondaryDiag))+geom_point()+geom_smooth(method = 'lm')
+autism_int <-lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+HaveSecondaryDiag+mABC_TotalStandardScore:HaveSecondaryDiag+sum_GAI_all)
+asd_no_int_2diag <-lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+HaveSecondaryDiag+sum_GAI_all)
+anova(autism_int,asd_no_int_2diag)
+```
+
+The different goup has very different slope, and the p-value of F-test is significant enough to prove that the interaction term should be included. So we need to include the interaction term between have secondary diagnosis and motor score.
+
+###Determine whether to include component score or total score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+full_model_total2 <- lm(data = Autism_group, SRS_TotalRawScore~mABC_TotalStandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+HaveSecondaryDiag+sum_GAI_all+mABC_TotalStandardScore:HaveSecondaryDiag)
+full_model_component2 <- lm(data = Autism_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_ManualDexterity.Component.StandardScore:HaveSecondaryDiag+mABC_AimingAndCatching.Component.StandardScore:HaveSecondaryDiag+mABC_Balance.Component.StandardScore:HaveSecondaryDiag)
+anova(full_model_total2,full_model_component2)
+asd_comp_1 <-lm(data = Autism_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_ManualDexterity.Component.StandardScore:HaveSecondaryDiag)
+asd_comp_2 <-lm(data = Autism_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag++mABC_AimingAndCatching.Component.StandardScore:HaveSecondaryDiag)
+asd_comp_3 <- lm(data = Autism_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+sum_GAI_all+HaveSecondaryDiag+mABC_Balance.Component.StandardScore:HaveSecondaryDiag)
+anova(full_model_total2,asd_comp_1)
+anova(full_model_total2,asd_comp_2)
+anova(full_model_total2,asd_comp_3)
+```
+
+The p-values are all so large that all p-values are not significant enough. So we decide to keep using total score but no component score.
+
+###Final model for Autism:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+autism_final <- full_model_total2
+summary(autism_final)
+ggplot(data = Autism_group,aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore)) + 
+  geom_point() + geom_smooth()+ geom_abline(intercept = coefficients(autism_final)[1], slope = coefficients(autism_final)[2], color = 'red', size = 1) +ggtitle("Final model for Autism group")#+ geom_abline(intercept = coefficients(fit3_Autism)[1], slope = coefficients(fit3_Autism)[2], color = 'green', size = 2)
+```
+
+In the final model, Autism children's average SRS score decreases to 60.18490, and their level of social deficit decreases greater than in the original model when the motor score increases. By looking at the summary of final model, we could say that the srs verison will affect the relationship between SRS score and motor score most efficiently, as it has the lowest p-value. 
+
+
+##None:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+None_group <- full_data_copy %>%
+  filter(PrimaryDiagnosis == 'None')
+ggplot(data=None_group,aes(y= SRS_TotalRawScore, x= mABC_TotalStandardScore))+
+  geom_point()+geom_smooth()+geom_smooth(method = 'lm', color='red',se=F) + ggtitle("The original model for None group")
+fit_None <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore)
+summary(fit_None)
+```
+
+In the original model, the average SRS score of None group children is lowest in those three groups of children, which is 32.6880. And their SRS score will only decrease very little as the motor score increases.
+
+
+###Determine whether there is influential points:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+bad_None_2 <- which(None_group$SRS_TotalRawScore>60)
+fit_None_bad2 <- lm(data = None_group,SRS_TotalRawScore[-bad_None_2]~mABC_TotalStandardScore[-bad_None_2])
+ggplot(data = None_group,aes(y=SRS_TotalRawScore,x=mABC_TotalStandardScore))+geom_point()+geom_abline(intercept = coefficients(fit_None)[1],slope = coefficients(fit_None)[2],color = 'red') +
+  geom_abline(intercept = coefficients(fit_None_bad2)[1],slope = coefficients(fit_None_bad2)[2],color='blue')
+```
+
+The lines are almost the same, no need to excluded any points.
+
+###Determine whether to include the SRS version:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = None_group, aes(y=residuals(fit_None),x=SRS_VERSION, group=SRS_VERSION,color=SRS_VERSION))+geom_point()+geom_boxplot()
+```
+
+The boxplot shows the residual of version one is much lower than the that of verison two, so we need to include the srs verison in the model.
+
+###Determine whether there is interaction between version and motor score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = None_group, aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore, group = SRS_VERSION, color = SRS_VERSION))+geom_point()+geom_smooth(method = 'lm')
+td_srs_int <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1)
+td_srs_no_int <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1)
+anova(td_srs_int,td_srs_no_int)
+```
+
+It could be seen that the slope of version two is really similar to that of version one, and the p-value of F-test is pretty high and not significant, so we do not need to include the interaction term between version and motor score in the model.
+
+###Determine whether to include age:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+none_age <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1)
+none_new1 <- lm(data = None_group,mABC_AGE~mABC_TotalStandardScore+SRS_VERSION_is_1)
+ggplot(data = None_group,aes(y=residuals(none_age),x=residuals(none_new1))) +geom_point() + geom_smooth(se=F) + geom_smooth(method = 'lm', color = 'red',size = 0.5, se = F)
+#summary(fit_None)
+#summary(lm(data = None_group,SRS_TotalRawScore ~ mABC_TotalStandardScore+mABC_AGE))
+```
+
+As the line is almost flat, it implies that the age will not affec the model, and we will add age as a control variable in the model.
+
+
+###Determine whether to inclued gender:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+none_gender <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE)
+ggplot(data = None_group,aes(y=residuals(none_gender),x=Gender, color = Gender))+geom_boxplot()+
+  geom_point()
+```
+
+It seems there is no obvious different for residuals between gender, so the gender will not affect the model, then we will add gender as a control group in the model.
+
+###Determine whether to include GAI:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+none_gai <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender)
+none_new2 <- lm(data = None_group,sum_GAI_all~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender)
+ggplot(data = None_group,aes(y=residuals(none_gai),x=residuals(none_new2))) + geom_point() + geom_smooth() + geom_smooth(method = 'lm', se = F,color ='red', size=0.5)
+```
+
+The regression line is not flat, and it has positive slope, so we should include the GAI score in the model
+
+###Determine whether there is interaction term between GAI and motor score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+td_gai_int <-lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender+sum_GAI_all)
+td_no_int_gai <-lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender+sum_GAI_all+mABC_TotalStandardScore:sum_GAI_all)
+anova(td_gai_int,td_no_int_gai)
+```
+
+The p-value of interaction term between WISC and motor score is not significant, so we do not include it in the model.
+
+
+###Determine whether to include Have Secondary Diagnosis:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+none_2dig <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender+sum_GAI_all)
+ggplot(data=None_group,aes(y=residuals(none_2dig),x=HaveSecondaryDiag, color = HaveSecondaryDiag))+geom_boxplot()+geom_point()
+```
+As children do not have secondary diagnosis have smaller residuals than those do have, whether have secondary diagnosis should be included in the model as a variable.
+
+###Determine whether there is interaction between have secondary diagnosis and motor score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+ggplot(data = None_group,aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore, group = HaveSecondaryDiag, color = HaveSecondaryDiag))+geom_point()+geom_smooth(method = 'lm')
+td_int_2diag <-lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender+sum_GAI_all+HaveSecondaryDiag+mABC_TotalStandardScore:HaveSecondaryDiag)
+td_no_int_2diag <-lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_AGE+Gender+sum_GAI_all+HaveSecondaryDiag)
+anova(td_int_2diag,td_no_int_2diag)
+```
+
+ALthough the group of have secondary diagnosis has very small population, these two groups have different slope, and the p-value of F-test is small and significant, so we decide to include the interaction term.
+
+###Determine whether to include total score or component score:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+full_model_total3 <- lm(data = None_group,SRS_TotalRawScore~mABC_TotalStandardScore+SRS_VERSION_is_1+mABC_TotalStandardScore:SRS_VERSION_is_1+mABC_AGE+Gender+sum_GAI_all+HaveSecondaryDiag+mABC_TotalStandardScore:HaveSecondaryDiag)
+full_model_component3 <- lm(data = None_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+HaveSecondaryDiag+sum_GAI_all+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:HaveSecondaryDiag+mABC_AimingAndCatching.Component.StandardScore:HaveSecondaryDiag+mABC_Balance.Component.StandardScore:HaveSecondaryDiag)
+anova(full_model_total3,full_model_component3)
+td_comp_1 <-lm(data = None_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+HaveSecondaryDiag+sum_GAI_all+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:HaveSecondaryDiag)
+td_comp_2 <-lm(data = None_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+HaveSecondaryDiag+sum_GAI_all+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:HaveSecondaryDiag)
+td_comp_3 <-lm(data = None_group,SRS_TotalRawScore~mABC_ManualDexterity.Component.StandardScore+mABC_AimingAndCatching.Component.StandardScore+mABC_Balance.Component.StandardScore+mABC_AGE+Gender+HaveSecondaryDiag+sum_GAI_all+SRS_VERSION_is_1+mABC_ManualDexterity.Component.StandardScore:SRS_VERSION_is_1+mABC_AimingAndCatching.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:SRS_VERSION_is_1+mABC_Balance.Component.StandardScore:HaveSecondaryDiag)
+anova(full_model_total3,td_comp_1)
+anova(full_model_total3,td_comp_2)
+anova(full_model_total3,td_comp_3)
+```
+
+No need to included total score or component score, as all the p-value from F-test are so large that they are all not significant enough.
+
+
+###Final model for None group:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+td_final <- full_model_total3
+ggplot(data =  None_group, aes(y= SRS_TotalRawScore, x= mABC_TotalStandardScore))+
+  geom_point()+geom_abline(intercept = coefficients(td_final)[1],slope = coefficients(td_final)[2], color = 'red') + geom_smooth()
+summary(td_final)
+```
+
+For final model None group, the increases of children's motor skill will only decrease their level of social deficit slightly, the average of SRS score is higher than that in the original model. And refering to the summary of final model, we could see that the p-value of SRS version is lowest among variables, the second one is HaveSecondaryDiag. Thus we could say that the srs version and whether a child has secondary diagnosis will affect the relationship between motor skill and social deficit efficiently.
+
+
+
+
+##Comparison:
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+adhd_model<-ggplot(data = ADHD_group, aes(y = SRS_TotalRawScore, x= mABC_TotalStandardScore))+geom_point()+
+  geom_abline(intercept = coefficients(fit1_ADHD)[1], slope = coefficients(fit1_ADHD)[2],color = 'blue')+ geom_abline(slope  = (coefficients(adhd_final)[2]+coefficients(adhd_final)[3]+coefficients(adhd_final)[4]),intercept=coefficients(adhd_final)[1],color = 'red')+ ggtitle("ADHD Model Comparison: blue is original, red is final")
+autism_model<-ggplot(data = Autism_group, aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore))+
+  geom_point()+ geom_abline(intercept = coefficients(fit_Autism)[1],slope = coefficients(fit_Autism)[2], color = 'blue')+ geom_abline(intercept = coefficients(autism_final)[1],slope = coefficients(autism_final)[2],color = 'red')+
+  ggtitle("Autism Model Comparison: blue is original, red is final")
+none_model<-ggplot(data = None_group, aes(y=SRS_TotalRawScore, x= mABC_TotalStandardScore))+ geom_point()+
+  geom_abline(intercept = coefficients(fit_None)[1],slope = coefficients(fit_None)[2],color = 'blue') + geom_abline(intercept = coefficients(td_final)[1],slope = coefficients(td_final)[2], color= 'red')+ggtitle("TD Model Comparison: blue is original, red is final")
+grid.arrange(adhd_model,autism_model,none_model,nrow=1)
+original<-ggplot(data = full_data_copy, aes(y=SRS_TotalRawScore,x=mABC_TotalStandardScore))+ geom_point()+
+  geom_abline(intercept = coefficients(fit1_ADHD)[1],slope = coefficients(fit1_ADHD)[2],color='green')+ geom_abline(intercept=coefficients(fit_Autism)[1], slope = coefficients(fit_Autism)[2],color = 'red')+ geom_abline(intercept = coefficients(fit_None)[1], slope = coefficients(fit_None)[2],color = 'blue')+ggtitle("ADHD(green),Autism(red),TD(blue)")
+final<-ggplot(data = full_data_copy, aes(y=SRS_TotalRawScore,x=mABC_TotalStandardScore))+ geom_point()+
+  geom_abline(intercept = coefficients(adhd_final)[1],slope = (coefficients(adhd_final)[2]+coefficients(adhd_final)[3]+coefficients(adhd_final)[4]),color='green')+ geom_abline(intercept=coefficients(autism_final)[1], slope = coefficients(autism_final)[2],color = 'red')+ geom_abline(intercept = coefficients(td_final)[1], slope = coefficients(td_final)[2],color = 'blue')+ggtitle("Original v.s. Final")
+```
+
+In the graphs above, blue lines are from the original model, red lines are from the final model. We could see that from the final model, all three groups show that the relationship between social deficit and motor skill is negative. The increases of children's motor skill will decrease the level of their social deficit. 
+
+
+###Final models of three groups:
+
+```{r,echo=F,warning=F,message=F}
+grid.arrange(original,final,nrow=1)
+summary(adhd_final)
+summary(autism_final)
+summary(td_final)
+```
+
+#Conclusion:
+
+In the graphs above, in the original model, ADHD children and None group children will always have lower level of social deficit than Autism children when their motor skill is increasing. In contrast, in the final model, the ADHD children will always have higher social deficit than other two groups when their motor skill is increasing. And the relationship between social ability and motor skill is always negative. According to the plots and summaries of these three groups, we could see that in the original models, the ADHD group will have more nagative relationship between social deficit and motor skil, as children's social deficit will decrease a lot when the motor skill is increasing, while for TD group and Autism group, the social deficit level will only decrease slightly when children's motor skill is increasing. However, in the final model, only in the TD group, the social deficit level will be decrease slightly when children's motor skill is incrreasing. The slope of ADHD group will be the sum of slopes of component score. The slope of ADHD group is similar to that of Autism group, children in either of these group will have stronger relationship between social deficit and motor skill than those in TD group. For children with ADHD or Autism, their social deficit level will decrease around 2 unit when their motor skill increases 1 unit, while for children in TD group, their social deficit will only decrease around 0.25 unit when their motor skill increases 1 unit.
+
+Overall, by examining the relationship between motor skill and social deficit for each primary diagnosis group, the relationship between social deficit and motor skill is always negative. Not matter the child has movement impairment or not, their social deficit level will always decreas when their motor skill is increasing. However, the movement impairment could make children's social skill increase a lot as their level of social deficit decrease, if they could increase their motor skill.
